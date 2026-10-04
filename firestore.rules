@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, create, update, delete: if isAdmin();
+    }
+
+    match /properties/{propertyId} {
+      allow read: if resource.data.status == 'ACTIVE' || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /site_settings/{settingsId} {
+      allow get: if settingsId == 'public';
+      allow list: if false;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /enquiries/{enquiryId} {
+      allow create: if request.resource.data.keys().hasAll(['name', 'phone', 'email', 'message', 'status', 'created_at'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 30
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 3000
+        && request.resource.data.status == 'NEW';
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /call_requests/{requestId} {
+      allow create: if request.resource.data.keys().hasAll(['name', 'phone', 'email', 'status', 'created_at'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 30
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.preferred_date is string
+        && request.resource.data.preferred_time is string
+        && request.resource.data.status == 'NEW';
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /site_visits/{visitId} {
+      allow create: if request.resource.data.keys().hasAll(['name', 'phone', 'email', 'status', 'visit_date', 'visit_time', 'created_at'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 30
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.visit_date is string
+        && request.resource.data.visit_time is string
+        && request.resource.data.status == 'REQUESTED';
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /appointment_slots/{slotId} {
+      allow read: if resource.data.status == 'AVAILABLE' || isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}
